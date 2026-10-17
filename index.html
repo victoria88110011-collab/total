@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bonus Dashboard</title>
+
+  <style>
+    html, body {
+      margin:0; padding:0;
+      width:100vw; height:100vh;
+      overflow:hidden;
+      background:#fff;
+      font-family: Arial, sans-serif;
+    }
+
+    body { font-size: 18px; }
+
+    .wrap {
+      height:100vh;
+      display:flex;
+      flex-direction:column;
+    }
+
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:14px 18px;
+      border-bottom:1px solid #eee;
+    }
+
+    .title{
+      font-size:22px;
+      font-weight:800;
+    }
+
+    .status{
+      font-size:16px;
+      opacity:.75;
+      white-space:nowrap;
+    }
+
+    .grid{
+      flex:1;
+      display:grid;
+      grid-template-rows: 1fr;
+      gap:14px;
+      padding:14px 18px;
+      box-sizing:border-box;
+      min-height:0;
+    }
+
+    .chartsStack{
+      display:grid;
+      grid-template-rows: 1fr;
+      gap:14px;
+      min-height:0;
+    }
+
+    .row2{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:0;
+      min-height:0;
+    }
+
+    .row2 > .card{
+      justify-self:center;
+      align-self:center;
+      width:40%;
+    }
+
+    .card{
+      border:1px solid #eee;
+      border-radius:14px;
+      padding:14px;
+      box-sizing:border-box;
+      min-height:0;
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+    }
+
+    .card h2{
+      margin:0 0 10px 0;
+      font-size:22px;
+      font-weight:900;
+      flex:0 0 auto;
+    }
+
+    .chartHost{
+      flex:1 1 auto;
+      min-height:0;
+    }
+
+    .vwrap{
+      height:100%;
+      display:grid;
+      grid-template-rows: minmax(0, 8fr) minmax(0, 67fr) minmax(0, 25fr);
+      gap:8px;
+    }
+
+    .plot{
+      position:relative;
+      border:1px solid #eee;
+      border-radius:12px;
+      overflow:hidden;
+      background:
+        linear-gradient(to bottom, rgba(0,0,0,.08) 1px, transparent 1px);
+      background-size:100% 20%;
+    }
+
+    canvas{
+      width:100%;
+      height:100%;
+      display:block;
+    }
+
+    .targetLabel{
+      position:absolute;
+      right:8px;
+      font-size:13px;
+      font-weight:900;
+      color:#e11d48;
+      background:rgba(255,255,255,.92);
+      padding:2px 6px;
+      border-radius:999px;
+      white-space:nowrap;
+      pointer-events:none;
+    }
+
+    .targetLine{
+      position:absolute;
+      left:0;
+      right:0;
+      height:2px;
+      background:#e11d48;
+      opacity:.85;
+      pointer-events:none;
+    }
+
+    .xlabels{
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+      gap:8px;
+      padding:12px 10px 0 10px;
+      overflow:hidden;
+      min-width:0;
+    }
+
+    .xlabel{
+      display:block;
+      text-align:center;
+      white-space:nowrap;
+      font-weight:900;
+      font-size:45px;
+      line-height:1.05;
+      transform: translate(-12px, 5px) rotate(-80deg);
+      transform-origin:center;
+      user-select:none;
+    }
+    
+    .engChart .xlabels{
+      padding:0 10px 45px 10px;
+    }
+    
+    .engChart .xlabel{
+      font-size:45px;
+      transform: translate(-10px, 25px) rotate(-80deg);
+    }
+
+    #sumTableWrap{
+      flex:1 1 auto;
+      min-height:0;
+      overflow:hidden;
+      border-radius:18px;
+      box-shadow:0 8px 24px rgba(0,0,0,0.06);
+    }
+
+    .sumTable{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      font-size:55px;
+      font-weight:900;
+      text-align:center;
+      border-radius:16px;
+      overflow:hidden;
+    }
+
+    .sumTable thead th{
+      background:#86b97a;
+      color:#000;
+      padding:18px 12px;
+      font-size:55px;
+      letter-spacing:0.5px;
+    }
+
+    .sumTable tbody tr{
+      background:#fff;
+    }
+
+    .sumTable td{
+      padding:20px 12px;
+      vertical-align:middle;
+      text-align:center;
+    }
+
+    .sumLabel,
+    .sumVal{
+      font-size:55px;
+    }
+
+    .card,
+    .chartHost,
+    .plot,
+    .vwrap{
+      min-width:0;
+    }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="title">Bonus dashboard</div>
+    <div class="status" id="status">Загрузка…</div>
+  </div>
+
+  <div class="grid">
+    <div class="chartsStack">
+      <div class="card">
+        <h2>RU</h2>
+        <div id="chartRU" class="chartHost"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const SPREADSHEET_ID = "123_11_j3y3KJhh45yomAOSFp3qP0Un7ePHxjcXQEhfs";
+  const GID = "1932060383";
+
+  const TARGET = 150000;
+  const REFRESH_MS = 90000;
+  const FETCH_TIMEOUT_MS = 15000;
+  const FETCH_RETRIES = 2;
+  const WATCHDOG_RELOAD_MS = 1000 * 60 * 30;
+
+  const MAKE_SMALL_VALUES_VISIBLE = true;
+  const MIN_VISIBLE_PCT = 1.2;
+
+  const RANGES = {
+    ru: "G2:H100",
+  };
+
+  const statusEl = document.getElementById("status");
+  const chartRU = document.getElementById("chartRU");
+
+  const chartStates = new WeakMap();
+  const activeCharts = new Set();
+
+  const requestDrawFrame = window.requestAnimationFrame
+    ? window.requestAnimationFrame.bind(window)
+    : callback => setTimeout(callback, 16);
+
+  let resizeRaf = 0;
+  let isLoading = false;
+  let hasLoadedOnce = false;
+  let lastRuText = "";
+
+  window.addEventListener("resize", () => {
+    if (resizeRaf) return;
+
+    resizeRaf = requestDrawFrame(() => {
+      resizeRaf = 0;
+
+      activeCharts.forEach(container => {
+        const state = chartStates.get(container);
+        if (state) state.redraw();
+      });
+    });
+  }, { passive:true });
+
+  function csvUrl(range) {
+    return `https://docs.google.com/spreadsheets/d/${encodeURIComponent(SPREADSHEET_ID)}/export?format=csv&gid=${encodeURIComponent(GID)}&range=${encodeURIComponent(range)}&t=${Date.now()}`;
+  }
+
+  function parseCSV(text) {
+    if (text && text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
+    const rows = [];
+    let row = [];
+    let cell = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const next = text[i + 1];
+
+      if (ch === '"' && inQuotes && next === '"') {
+        cell += '"';
+        i++;
+        continue;
+      }
+
+      if (ch === '"') {
+        inQuotes = !inQuotes;
+        continue;
+      }
+
+      if (ch === "\n" && !inQuotes) {
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = "";
+        continue;
+      }
+
+      if (ch === "\r") continue;
+
+      if (ch === "," && !inQuotes) {
+        row.push(cell);
+        cell = "";
+        continue;
+      }
+
+      cell += ch;
+    }
+
+    row.push(cell);
+    rows.push(row);
+
+    return rows
+      .map(r => (r || []).map(v => (v ?? "").trim()))
+      .filter(r => r.length >= 2 && !(r[0] === "" && r[1] === ""));
+  }
+
+  function toNumber(v) {
+    const s = String(v ?? "").replace(/\s/g, "").replace(",", ".");
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function esc(s) {
+    return String(s ?? "")
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
+  }
+
+  function hashString(s) {
+    s = String(s ?? "");
+    let h = 2166136261;
+
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+
+    return h >>> 0;
+  }
+
+  const STRICT_PALETTE = [
+    "#1f2937",
+    "#334155",
+    "#0f766e",
+    "#1e40af",
+    "#6b21a8",
+    "#7c2d12",
+    "#065f46",
+    "#3f3f46"
+  ];
+
+  function colorForName(name) {
+    return STRICT_PALETTE[hashString(name) % STRICT_PALETTE.length];
+  }
+
+  function niceMax(v) {
+    if (v <= 0) return 1;
+
+    const exp = Math.pow(10, Math.floor(Math.log10(v)));
+    const frac = v / exp;
+
+    let niceFrac;
+
+    if (frac <= 1) niceFrac = 1;
+    else if (frac <= 2) niceFrac = 2;
+    else if (frac <= 5) niceFrac = 5;
+    else niceFrac = 10;
+
+    return niceFrac * exp;
+  }
+
+  function draw3DBar(ctx, x, y, w, h, color) {
+    const depth = Math.min(10, Math.max(4, w * 0.18));
+    const top = Math.min(10, Math.max(4, w * 0.18));
+
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+
+    ctx.fillStyle = "rgba(255,255,255,0.28)";
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + top, y - top);
+    ctx.lineTo(x + w, y - top);
+    ctx.lineTo(x + w - top, y);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.beginPath();
+    ctx.moveTo(x + w, y);
+    ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x + w + depth, y + h - top);
+    ctx.lineTo(x + w + depth, y - top);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(0,0,0,0.12)";
+    ctx.fillRect(x, y + h, w, 6);
+  }
+
+  function fitLabelsX(labelsEl) {
+    labelsEl.style.transform = "none";
+    labelsEl.style.transformOrigin = "top left";
+
+    const parent = labelsEl.parentElement;
+    if (!parent) return;
+
+    const available = parent.clientWidth;
+    const needed = labelsEl.scrollWidth;
+
+    if (!available || !needed) return;
+
+    if (needed > available) {
+      const scaleX = Math.max(0.6, available / needed);
+      labelsEl.style.transform = `scaleX(${scaleX})`;
+    }
+  }
+
+  function ensureCanvasChart(container) {
+    let state = chartStates.get(container);
+
+    if (!state) {
+      container.innerHTML = `
+        <div class="vwrap">
+          <div></div>
+          <div class="plot">
+            <div class="targetLine"></div>
+            <div class="targetLabel"></div>
+            <canvas></canvas>
+          </div>
+          <div class="xlabels"></div>
+        </div>
+      `;
+
+      const canvas = container.querySelector("canvas");
+
+      state = {
+        plot: container.querySelector(".plot"),
+        canvas,
+        ctx: canvas.getContext("2d"),
+        labelsEl: container.querySelector(".xlabels"),
+        targetLine: container.querySelector(".targetLine"),
+        targetLabel: container.querySelector(".targetLabel"),
+        items: [],
+        axisMax: 1,
+        canvasPixelWidth: 0,
+        canvasPixelHeight: 0,
+        canvasCssWidth: 0,
+        canvasCssHeight: 0,
+        redraw: () => {}
+      };
+
+      chartStates.set(container, state);
+      activeCharts.add(container);
+    }
+
+    return state;
+  }
+
+  function renderCanvasChart(container, pairs, opts = {}) {
+    const maxBarWidth = opts.maxBarWidth || null;
+    const minBarWidth = opts.minBarWidth || 10;
+    const customGap = opts.gap || 8;
+    const valueFont = opts.valueFont || "800 50px Arial";
+
+    let items = pairs.map(r => {
+      const name = r[0] ?? "";
+
+      return {
+        name,
+        value: toNumber(r[1]),
+        color: colorForName(name)
+      };
+    });
+
+    items.sort((a,b) => b.value - a.value);
+
+    let maxData = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].value > maxData) maxData = items[i].value;
+    }
+
+    const axisMax = niceMax(maxData || 1);
+    const showTargetInside = TARGET <= axisMax;
+    const targetPct = showTargetInside ? (TARGET / axisMax) * 100 : 100;
+
+    const state = ensureCanvasChart(container);
+    const { plot, canvas, ctx, labelsEl, targetLine, targetLabel } = state;
+
+    state.items = items;
+    state.axisMax = axisMax;
+
+    while (labelsEl.children.length > items.length) {
+      labelsEl.removeChild(labelsEl.lastElementChild);
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      let label = labelsEl.children[i];
+
+      if (!label) {
+        label = document.createElement("div");
+        label.className = "xlabel";
+        labelsEl.appendChild(label);
+      }
+
+      label.textContent = items[i].name;
+      label.title = items[i].name;
+    }
+
+    if (showTargetInside) {
+      targetLine.style.display = "";
+      targetLine.style.bottom = targetPct + "%";
+      targetLabel.style.top = "";
+      targetLabel.style.bottom = targetPct + "%";
+      targetLabel.style.transform = "translateY(50%)";
+      targetLabel.textContent = "ЦЕЛЬ " + TARGET;
+    } else {
+      targetLine.style.display = "none";
+      targetLine.style.bottom = "";
+      targetLabel.style.top = "10px";
+      targetLabel.style.bottom = "";
+      targetLabel.style.transform = "none";
+      targetLabel.textContent = "ЦЕЛЬ " + TARGET + " (выше)";
+    }
+
+    function getBarWidth(W, n, gap) {
+      const calculated = Math.floor((W - gap * (n - 1)) / n);
+      const safe = Math.max(minBarWidth, calculated);
+      return maxBarWidth ? Math.min(maxBarWidth, safe) : safe;
+    }
+
+    function syncLabelsLayout(rectWidth) {
+      const padL = 14;
+      const padR = 22;
+      const W = rectWidth - padL - padR;
+      const n = items.length;
+      const gap = customGap;
+      const barW = getBarWidth(W, n, gap);
+
+      labelsEl.style.display = "flex";
+      labelsEl.style.justifyContent = "center";
+      labelsEl.style.alignItems = "flex-start";
+      labelsEl.style.gap = gap + "px";
+
+      for (let i = 0; i < labelsEl.children.length; i++) {
+        labelsEl.children[i].style.width = barW + "px";
+      }
+
+      fitLabelsX(labelsEl);
+    }
+
+    function redraw() {
+      const items = state.items;
+      const axisMax = state.axisMax;
+      const rect = plot.getBoundingClientRect();
+
+      syncLabelsLayout(rect.width);
+
+      const dpr = window.devicePixelRatio || 1;
+      const pixelWidth = Math.floor(rect.width * dpr);
+      const pixelHeight = Math.floor(rect.height * dpr);
+
+      if (state.canvasPixelWidth !== pixelWidth || state.canvasPixelHeight !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+        state.canvasPixelWidth = pixelWidth;
+        state.canvasPixelHeight = pixelHeight;
+      }
+
+      if (state.canvasCssWidth !== rect.width) {
+        canvas.style.width = rect.width + "px";
+        state.canvasCssWidth = rect.width;
+      }
+
+      if (state.canvasCssHeight !== rect.height) {
+        canvas.style.height = rect.height + "px";
+        state.canvasCssHeight = rect.height;
+      }
+
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.clearRect(0,0,rect.width,rect.height);
+
+      const padL = 14;
+      const padR = 22;
+      const padT = 5;
+      const padB = 0;
+      
+      const W = rect.width - padL - padR;
+      const H = rect.height - padT - padB;
+
+      ctx.fillStyle = "rgba(0,0,0,0.06)";
+      ctx.fillRect(padL, padT + H + 6, W, 10);
+
+      const n = items.length;
+      const gap = customGap;
+      const barW = getBarWidth(W, n, gap);
+      const totalW = n * barW + (n - 1) * gap;
+      const startX = padL + Math.max(0, (W - totalW) / 2);
+
+      items.forEach((it, i) => {
+        const rawPct = (it.value / axisMax) * 100;
+        let pct = Math.max(0, Math.min(100, rawPct));
+
+        if (MAKE_SMALL_VALUES_VISIBLE && it.value > 0) {
+          pct = Math.max(pct, MIN_VISIBLE_PCT);
+        }
+
+        const h = (pct / 100) * H;
+        const x = startX + i * (barW + gap);
+        const y = padT + (H - h);
+
+        ctx.fillStyle = "#000";
+        ctx.font = valueFont;
+        ctx.textAlign = "center";
+        ctx.fillText(String(it.value), x + barW / 2, Math.max(12, y - 6));
+
+        if (it.value <= 0) {
+          ctx.fillStyle = it.color;
+          ctx.fillRect(x, padT + H - 2, barW, 2);
+        } else {
+          draw3DBar(ctx, x, y, barW, h, it.color);
+        }
+      });
+    }
+
+    state.redraw = redraw;
+    redraw();
+  }
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async function fetchTextWithTimeout(url, timeoutMs = FETCH_TIMEOUT_MS) {
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    let timeoutId;
+
+    const timeout = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        if (controller) controller.abort();
+        reject(new Error("Google Sheets timeout"));
+      }, timeoutMs);
+    });
+
+    const fetchOptions = { cache:"no-store" };
+    if (controller) fetchOptions.signal = controller.signal;
+
+    const request = fetch(url, fetchOptions).then(response => {
+      if (!response.ok) {
+        throw new Error("Google Sheets HTTP " + response.status);
+      }
+
+      return response.text();
+    });
+
+    try {
+      return await Promise.race([request, timeout]);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  // Резервная загрузка через Google Visualization (без fetch/CORS).
+  function fetchViaGviz(range) {
+    return new Promise((resolve, reject) => {
+      const callbackName = "bonusGviz_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+      const script = document.createElement("script");
+      let finished = false;
+      const cleanup = () => {
+        delete window[callbackName];
+        script.remove();
+        clearTimeout(timer);
+      };
+      const fail = () => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        reject(new Error("Не удалось получить данные Google Sheets. Проверьте доступ к таблице или откройте HTML в обычном браузере."));
+      };
+      const timer = setTimeout(fail, FETCH_TIMEOUT_MS);
+      window[callbackName] = response => {
+        if (finished) return;
+        if (!response || response.status === "error" || !response.table) { fail(); return; }
+        finished = true;
+        const csv = (response.table.rows || []).map(row =>
+          (row.c || []).slice(0, 2).map(cell => {
+            const value = cell ? (cell.v ?? "") : "";
+            return '"' + String(value).replace(/"/g, '""') + '"';
+          }).join(",")
+        ).join("\n");
+        cleanup();
+        resolve(csv);
+      };
+      script.onerror = fail;
+      script.src = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(SPREADSHEET_ID)}/gviz/tq?gid=${encodeURIComponent(GID)}&range=${encodeURIComponent(range)}&tqx=${encodeURIComponent("responseHandler:" + callbackName)}&t=${Date.now()}`;
+      document.head.appendChild(script);
+    });
+  }
+
+  async function fetchCSVRange(range) {
+    let lastError;
+
+    for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
+      try {
+        return await fetchTextWithTimeout(csvUrl(range));
+      } catch (error) {
+        lastError = error;
+
+        if (attempt < FETCH_RETRIES) {
+          await sleep(1000 * (attempt + 1));
+        }
+      }
+    }
+
+    try {
+      return await fetchViaGviz(range);
+    } catch (fallbackError) {
+      throw fallbackError;
+    }
+  }
+
+  async function loadAll() {
+    if (isLoading) return;
+    isLoading = true;
+
+    try {
+      statusEl.textContent = "Загрузка…";
+
+      const ruText = await fetchCSVRange(RANGES.ru);
+
+      const dataChanged = !hasLoadedOnce
+        || ruText !== lastRuText
+;
+
+      if (dataChanged) {
+        lastRuText = ruText;
+
+        const ru = parseCSV(ruText);
+
+      renderCanvasChart(chartRU, ru, {
+        valueFont: "800 36px Arial"
+      });
+      
+      }
+
+      hasLoadedOnce = true;
+      statusEl.textContent = "Обновлено: " + new Date().toLocaleTimeString();
+    } catch (e) {
+      if (!hasLoadedOnce) {
+        chartRU.innerHTML = `<div style="color:#b00020; padding:14px;">${esc(e.message)}</div>`;
+      }
+
+      statusEl.textContent = "Ошибка: " + e.message;
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  loadAll();
+  setInterval(loadAll, REFRESH_MS);
+  setInterval(() => location.reload(), WATCHDOG_RELOAD_MS);
+</script>
+</body>
+</html>
