@@ -157,7 +157,7 @@
       text-align:center;
       white-space:nowrap;
       font-weight:900;
-      font-size:45px;
+      font-size:51.75px;
       line-height:1.05;
       writing-mode:vertical-rl;
       transform:rotate(180deg);
@@ -579,13 +579,13 @@
       labelsEl.style.display = "block";
       const labelHeight = Math.max(1, labelsEl.clientHeight - 12);
       const measure = document.createElement("canvas").getContext("2d");
-      let fontSize = 45;
+      let fontSize = 51.75;
       for (const item of items) {
-        measure.font = "900 45px Arial";
+        measure.font = "900 51.75px Arial";
         const width = measure.measureText(item.name).width;
-        if (width > labelHeight) fontSize = Math.min(fontSize, 45 * labelHeight / width);
+        if (width > labelHeight) fontSize = Math.min(fontSize, 51.75 * labelHeight / width);
       }
-      fontSize = Math.max(10, Math.min(45, fontSize));
+      fontSize = Math.max(10, Math.min(51.75, fontSize));
 
       for (let i = 0; i < labelsEl.children.length; i++) {
         const label = labelsEl.children[i];
@@ -784,7 +784,7 @@
         const ru = parseCSV(ruText);
 
       renderCanvasChart(chartRU, ru, {
-        valueFont: "800 36px Arial"
+        valueFont: "800 41.4px Arial"
       });
       
       }
